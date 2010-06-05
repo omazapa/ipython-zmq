@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # encoding: utf-8
 """
 A context manager for managing things injected into :mod:`__builtin__`.
@@ -6,6 +7,9 @@ A context manager for managing things injected into :mod:`__builtin__`.
 Authors:
 
 * Brian Granger
+Contributors:
+
+
 """
 
 #-----------------------------------------------------------------------------
