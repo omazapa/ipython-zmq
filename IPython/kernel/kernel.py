@@ -21,7 +21,7 @@ import traceback
 import zmq
 
 from IPython.utils.session import Session, Message, extract_header
-from IPython.utils.completer import KernelCompleter
+from IPython.core.completer import KernelCompleter
 
 from IPython.core.iplib import InteractiveShell
 

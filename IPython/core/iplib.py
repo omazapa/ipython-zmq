@@ -197,7 +197,7 @@ class SeparateStr(Str):
 #-----------------------------------------------------------------------------
 
 
-class InteractiveShellKernel(Component, Magic):
+class InteractiveShell(Component, Magic):
     """An enhanced, interactive shell for Python."""
 
     autocall = Enum((0,1,2), default_value=1, config=True)
