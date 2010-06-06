@@ -700,6 +700,8 @@ class ClientCompleter(object):
         self.session = session
         self.socket = socket
         self.matches = []
+    def __call__(self):
+        return self
 
     def request_completion(self, text):
         # Get full line to give to the kernel in case it wants more info.
