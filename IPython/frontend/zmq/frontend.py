@@ -37,7 +37,7 @@ class Console(code.InteractiveConsole):
         self.messages = {}
 
         # Set tab completion
-        
+        self.completer=completer.ClientCompleter(self,session,request_socket)
         readline.parse_and_bind('tab: complete')
         readline.parse_and_bind('set show-all-if-ambiguous on')
         readline.set_completer(self.completer.complete)
@@ -52,6 +52,7 @@ class Console(code.InteractiveConsole):
             self.handlers[msg_type] = getattr(self, 'handle_%s' % msg_type)
 
     def handle_pyin(self, omsg):
+        #print "into hpyin"
         if omsg.parent_header.session == self.session.session:
             return
         c = omsg.content.code.rstrip()
@@ -61,6 +62,7 @@ class Console(code.InteractiveConsole):
 
     def handle_pyout(self, omsg):
         #print omsg # dbg
+        
         if omsg.parent_header.session == self.session.session:
             print "%s%s" % (sys.ps3, omsg.content.data)
         else:

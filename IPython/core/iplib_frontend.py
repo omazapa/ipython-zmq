@@ -5,7 +5,11 @@
 import __builtin__
 from contextlib import nested
 import time
+import sys
 import readline
+import uuid
+import cPickle as pickle
+import code
 
 from IPython.core.iplib import InteractiveShell
 from IPython.utils import session
@@ -30,25 +34,25 @@ class InteractiveShellFrontend(InteractiveShell):
        #readline.parse_and_bind('set show-all-if-ambiguous on')
        #readline.set_completer(self.completer.complete)
        #self.set_custom_completer(self.completer.complete,0)
-#       self.handlers = {}
-#       for msg_type in ['pyin', 'pyout', 'pyerr', 'stream']:
-#           self.handlers[msg_type] = getattr(self, 'handle_%s' % msg_type)
-#       self.session = session
-#       self.request_socket = request_socket
-#       self.sub_socket = subscribe_socket
-#       self.backgrounded = 0
-#       self.messages = {}
+       self.handlers = {}
+       for msg_type in ['pyin', 'pyout', 'pyerr', 'stream']:
+           self.handlers[msg_type] = getattr(self, 'handle_%s' % msg_type)
+       self.session = session
+       self.request_socket = request_socket
+       self.sub_socket = subscribe_socket
+       self.backgrounded = 0
+       self.messages = {}
    
-   def test_push_line(self,line):
+   def _push_line(self,line):
        for subline in line.splitlines():
             self._autoindent_update(subline)
        self.buffer_lines.append(line)
-       more = self.test_runsource('\n'.join(self.buffer_lines), self.filename)
-       if not more:
-           self.resetbuffer()
+       more = self._runsource('\n'.join(self.buffer_lines), self.filename)
+       if more == None:
+           self.buffer_lines[:]=[]
        return more
    
-   def test_runsource(self, source, filename='<input>', symbol='single'):
+   def _runsource(self, source, filename='<input>', symbol='single'):
        source=source.encode(self.stdin_encoding)
        if source[:1] in [' ', '\t']:
            source = 'if 1:\n%s' % source
@@ -57,12 +61,16 @@ class InteractiveShellFrontend(InteractiveShell):
        except (OverflowError, SyntaxError, ValueError, TypeError, MemoryError):
             # Case 1
            self.showsyntaxerror(filename)
+           #self.buffer_lines[:]=[]
            return None
 
        if code is None:
             # Case 2
            return True
        else:
+           #print self.buffer_lines
+           self.runcode(self.buffer_lines.__str__())
+           #self.runlines(self.buffer_lines)
            self.buffer_lines[:]=[]
            return False
     
@@ -87,7 +95,7 @@ class InteractiveShellFrontend(InteractiveShell):
         # ask_exit callback.
         
         while not self.exit_now:
-            buffer=[]
+            #buffer=[]
             self.hooks.pre_prompt_hook()
             if more:
                 try:
@@ -104,7 +112,7 @@ class InteractiveShellFrontend(InteractiveShell):
                     self.showtraceback()
             try:
                 line = self.raw_input(prompt, more)
-                buffer.append(line)
+                #buffer.append(line)
                 if self.exit_now:
                     # quick exit on sys.std[in|out] close
                     break
@@ -141,11 +149,11 @@ class InteractiveShellFrontend(InteractiveShell):
                 # asynchronously by signal handlers, for example.
                 self.showtraceback()
             else:
-                more = self.test_push_line(line)
+                more = self._push_line(line)
                 if (self.SyntaxTB.last_syntax_error and
                     self.autoedit_syntax):
                     self.edit_syntax_error()
-            #print buffer    
+            #print self.buffer_lines  
             #self.runcode(buffer)
               
         # We are off again...
@@ -154,104 +162,114 @@ class InteractiveShellFrontend(InteractiveShell):
         # Turn off the exit flag, so the mainloop can be restarted if desired
         self.exit_now = False
         
-#   def handle_pyin(self, omsg):
-#       if omsg.parent_header.session == self.session.session:
-#            return
-#       c = omsg.content.code.rstrip()
-#       if c:
-#           print '[IN from %s]' % omsg.parent_header.username
-#           print c
-#   def handle_pyout(self, omsg):
-#       #print omsg # dbg
-#       if omsg.parent_header.session == self.session.session:
-#           print "%s%s" % (sys.ps3, omsg.content.data)
-#       else:
-#           print '[Out from %s]' % omsg.parent_header.username
-#           print omsg.content.data
-#   def print_pyerr(self, err):
-#       print >> sys.stderr, err.etype,':', err.evalue
-#       print >> sys.stderr, ''.join(err.traceback)       
-#    
-#   def handle_pyerr(self, omsg):
-#       if omsg.parent_header.session == self.session.session:
-#           return
-#       print >> sys.stderr, '[ERR from %s]' % omsg.parent_header.username
-#       self.print_pyerr(omsg.content)
-#       
-#   def handle_stream(self, omsg):
-#       if omsg.content.name == 'stdout':
-#           outstream = sys.stdout
-#       else:
-#           outstream = sys.stderr
-#           print >> outstream, '*ERR*',
-#           print >> outstream, omsg.content.data,
-#
-#   def handle_output(self, omsg):
-#        handler = self.handlers.get(omsg.msg_type, None)
-#        if handler is not None:
-#            handler(omsg)
-#
-#   def recv_output(self):
-#        while True:
-#            omsg = self.session.recv(self.sub_socket)
-#            if omsg is None:
-#                break
-#            self.handle_output(omsg)
-#
-#   def handle_reply(self, rep):
-#        # Handle any side effects on output channels
-#        self.recv_output()
-#        # Now, dispatch on the possible reply types we must handle
-#        if rep is None:
-#            return
-#        if rep.content.status == 'error':
-#            self.print_pyerr(rep.content)            
-#        elif rep.content.status == 'aborted':
-#            print >> sys.stderr, "ERROR: ABORTED"
-#            ab = self.messages[rep.parent_header.msg_id].content
-#            if 'code' in ab:
-#                print >> sys.stderr, ab.code
-#            else:
-#                print >> sys.stderr, ab
-#
-#   def recv_reply(self):
-#        rep = self.session.recv(self.request_socket)
-#        self.handle_reply(rep)
-#        return rep
-#
-#   def runcode(self, code):
-#       # We can't pickle code objects, so fetch the actual source
-#       src = '\n'.join(self.buffer)
-#       # for non-background inputs, if we do have previoiusly backgrounded
-#       # jobs, check to see if they've produced results
-#       if not src.endswith(';'):
-#           while self.backgrounded > 0:
-#               #print 'checking background'
-#               rep = self.recv_reply()
-#               if rep:
-#                   self.backgrounded -= 1
-#               time.sleep(0.05)
-#       # Send code execution message to kernel
-#       omsg = self.session.send(self.request_socket,
-#                                 'execute_request', dict(code=src))
-#       self.messages[omsg.header.msg_id] = omsg
-#        
-#        # Fake asynchronicity by letting the user put ';' at the end of the line
-#       if src.endswith(';'):
-#           self.backgrounded += 1
-#           return
-#
-#        # For foreground jobs, wait for reply
-#       while True:
-#           rep = self.recv_reply()
-#           if rep is not None:
-#               break
-#           self.recv_output()
-#           time.sleep(0.05)
-#       else:
-#           # We exited without hearing back from the kernel!
-#           print >> sys.stderr, 'ERROR!!! kernel never got back to us!!!'
-#    
+   def handle_pyin(self, omsg):
+       #print "handle_pyin:\n",omsg
+       if omsg.parent_header.session == self.session.session:
+            return
+       c = omsg.content.code.rstrip()
+       if c:
+           print '[IN from %s]' % omsg.parent_header.username
+           print c
+   def handle_pyout(self, omsg):
+       #print "handle_pyout:\n",omsg # dbg
+       if omsg.parent_header.session == self.session.session:
+           print "%s%s" % (sys.ps3, omsg.content.data)
+       else:
+           print '[Out from %s]' % omsg.parent_header.username
+           print omsg.content.data
+   def print_pyerr(self, err):
+       #print "print_pyerr:\n",omsg
+       print >> sys.stderr, err.etype,':', err.evalue
+       print >> sys.stderr, ''.join(err.traceback)       
+    
+   def handle_pyerr(self, omsg):
+       #print "handle_pyerr:\n",omsg
+       if omsg.parent_header.session == self.session.session:
+           return
+       print >> sys.stderr, '[ERR from %s]' % omsg.parent_header.username
+       self.print_pyerr(omsg.content)
+       
+   def handle_stream(self, omsg):
+       #print "handle_stream:\n",omsg
+       if omsg.content.name == 'stdout':
+           outstream = sys.stdout
+       else:
+           outstream = sys.stderr
+           print >> outstream, '*ERR*',
+           print >> outstream, omsg.content.data,
+
+   def handle_output(self, omsg):
+       #print "handle_output:\n",omsg
+       handler = self.handlers.get(omsg.msg_type, None)
+       if handler is not None:
+           handler(omsg)
+
+   def recv_output(self):
+       #print "recv_output:"
+       while True:
+           omsg = self.session.recv(self.sub_socket)
+           if omsg is None:
+               break
+           self.handle_output(omsg)
+           #print omsg
+
+   def handle_reply(self, rep):
+        # Handle any side effects on output channels
+        self.recv_output()
+        # Now, dispatch on the possible reply types we must handle
+        if rep is None:
+            return
+        if rep.content.status == 'error':
+            self.print_pyerr(rep.content)            
+        elif rep.content.status == 'aborted':
+            print >> sys.stderr, "ERROR: ABORTED"
+            ab = self.messages[rep.parent_header.msg_id].content
+            if 'code' in ab:
+                print >> sys.stderr, ab.code
+            else:
+                print >> sys.stderr, ab
+
+   def recv_reply(self):
+        rep = self.session.recv(self.request_socket)
+        self.handle_reply(rep)
+        return rep
+
+   def runcode(self, code):
+       # We can't pickle code objects, so fetch the actual source
+       
+       src = '\n'.join(self.buffer_lines)
+       # for non-background inputs, if we do have previoiusly backgrounded
+       # jobs, check to see if they've produced results
+       if not src.endswith(';'):
+           while self.backgrounded > 0:
+               #print 'checking background'
+               rep = self.recv_reply()
+               if rep:
+                   self.backgrounded -= 1
+               time.sleep(0.05)
+       # Send code execution message to kernel
+       #print "sending message"
+       omsg = self.session.send(self.request_socket,
+                                 'execute_request', dict(code=src))
+       self.messages[omsg.header.msg_id] = omsg
+        
+        # Fake asynchronicity by letting the user put ';' at the end of the line
+       if src.endswith(';'):
+           self.backgrounded += 1
+           return
+
+        # For foreground jobs, wait for reply
+       while True:
+           #print "waiting recieve"
+           rep = self.recv_reply()
+           if rep is not None:
+               break
+           self.recv_output()
+           time.sleep(0.05)
+       else:
+           # We exited without hearing back from the kernel!
+           print >> sys.stderr, 'ERROR!!! kernel never got back to us!!!'
+    
       
 if __name__ == "__main__" :
     # Defaults
