@@ -6,7 +6,7 @@ import __builtin__
 from contextlib import nested
 import time
 import sys
-import readline
+#import readline
 import uuid
 import cPickle as pickle
 import code
@@ -23,17 +23,10 @@ class InteractiveShellFrontend(InteractiveShell):
    def __init__(self,filename="<console>", session = session, request_socket=None, subscribe_socket=None):
        InteractiveShell.__init__(self)
        self.buffer_lines=[]
-       #self.shell=InteractiveShell()
        #self.display_banner = CBool(False)
        
-       #self.completer=completer.ClientCompleter(self,session,request_socket)
-       #self.set_custom_completer(self.completer)
-       #self.set_completer()
-       
-       #readline.parse_and_bind('tab: complete')
-       #readline.parse_and_bind('set show-all-if-ambiguous on')
-       #readline.set_completer(self.completer.complete)
-       #self.set_custom_completer(self.completer.complete,0)
+       self.completer=completer.ClientCompleter(self,session,request_socket)
+       self.Completer=self.completer
        self.handlers = {}
        for msg_type in ['pyin', 'pyout', 'pyerr', 'stream']:
            self.handlers[msg_type] = getattr(self, 'handle_%s' % msg_type)
@@ -42,6 +35,10 @@ class InteractiveShellFrontend(InteractiveShell):
        self.sub_socket = subscribe_socket
        self.backgrounded = 0
        self.messages = {}
+       #setting clors on trecabacks
+#       sys.excepthook = ultratb.ColorTB()
+#       sys.excepthook = ultratb.VerboseTB()
+#       self.formattedtb=ultratb.FormattedTB()
    
    def _push_line(self,line):
        for subline in line.splitlines():
@@ -69,14 +66,14 @@ class InteractiveShellFrontend(InteractiveShell):
            return True
        else:
            #print self.buffer_lines
-           self.runcode(self.buffer_lines.__str__())
+           self.runcode(self.buffer_lines)
            #self.runlines(self.buffer_lines)
            self.buffer_lines[:]=[]
            return False
     
    def prompt(self):
         """Closely emulate the interactive Python console."""
-
+        #print self.lsmagic()
         # batch run -> do not interact        
         if self.exit_now:
             return
@@ -173,7 +170,7 @@ class InteractiveShellFrontend(InteractiveShell):
    def handle_pyout(self, omsg):
        #print "handle_pyout:\n",omsg # dbg
        if omsg.parent_header.session == self.session.session:
-           print "%s%s" % (sys.ps3, omsg.content.data)
+           print "%s%s" % (">>", omsg.content.data)
        else:
            print '[Out from %s]' % omsg.parent_header.username
            print omsg.content.data
@@ -193,16 +190,18 @@ class InteractiveShellFrontend(InteractiveShell):
        #print "handle_stream:\n",omsg
        if omsg.content.name == 'stdout':
            outstream = sys.stdout
+           print >> outstream, omsg.content.data
        else:
            outstream = sys.stderr
            print >> outstream, '*ERR*',
-           print >> outstream, omsg.content.data,
+           print >> outstream, omsg.content.data
 
    def handle_output(self, omsg):
        #print "handle_output:\n",omsg
        handler = self.handlers.get(omsg.msg_type, None)
        if handler is not None:
            handler(omsg)
+       
 
    def recv_output(self):
        #print "recv_output:"
@@ -262,6 +261,7 @@ class InteractiveShellFrontend(InteractiveShell):
        while True:
            #print "waiting recieve"
            rep = self.recv_reply()
+           
            if rep is not None:
                break
            self.recv_output()

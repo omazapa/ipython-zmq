@@ -668,9 +668,10 @@ class IPCompleter(Completer):
             return None
             
 
-class KernelCompleter(object):
+class KernelCompleter(IPCompleter):
     """Kernel-side completion machinery."""
-    def __init__(self, namespace):
+    def __init__(self,shell, namespace):
+        IPCompleter.__init__(self,shell,namespace,namespace)
         self.namespace = namespace
         self.completer = rlcompleter.Completer(namespace)
 
@@ -684,8 +685,7 @@ class KernelCompleter(object):
                 break
             matches.append(comp)
         return matches
-    
-
+ 
 class ClientCompleter(object):
     """Client-side completion machinery.
 
@@ -700,12 +700,13 @@ class ClientCompleter(object):
         self.session = session
         self.socket = socket
         self.matches = []
-    def __call__(self):
-        return self
+    #def __call__(self):
+    #    return self
 
     def request_completion(self, text):
         # Get full line to give to the kernel in case it wants more info.
         line = readline.get_line_buffer()
+        #print(line)
         # send completion request to kernel
         msg = self.session.send(self.socket,
                                 'complete_request',
@@ -743,3 +744,4 @@ class ClientCompleter(object):
             return self.matches[state]
         except IndexError:
             return None
+

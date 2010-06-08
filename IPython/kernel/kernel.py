@@ -270,15 +270,15 @@ def main():
     sys.stdout = stdout
     sys.stderr = stderr
 
-    display_hook = DisplayHook(session, pub_socket)
-    sys.displayhook = display_hook
+    #display_hook = DisplayHook(session, pub_socket)
+    #sys.displayhook = display_hook
 
     kernel = Kernel(session, reply_socket, pub_socket)
 
     # For debugging convenience, put sleep and a string in the namespace, so we
     # have them every time we start.
-    kernel.user_ns['sleep'] = time.sleep
-    kernel.user_ns['s'] = 'Test string'
+    #kernel.user_ns['sleep'] = time.sleep
+    #kernel.user_ns['s'] = 'Test string'
     
     print >>sys.__stdout__, "Use Ctrl-\\ (NOT Ctrl-C!) to terminate."
     kernel.start()

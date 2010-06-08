@@ -40,7 +40,7 @@ class Console(code.InteractiveConsole):
         self.completer=completer.ClientCompleter(self,session,request_socket)
         readline.parse_and_bind('tab: complete')
         readline.parse_and_bind('set show-all-if-ambiguous on')
-        readline.set_completer(self.completer.complete)
+        readline.set_completer(self.completer)
 
         # Set system prompts
         sys.ps1 = 'Py>>> '
