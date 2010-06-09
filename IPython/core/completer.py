@@ -706,6 +706,7 @@ class ClientCompleter(object):
     def request_completion(self, text):
         # Get full line to give to the kernel in case it wants more info.
         line = readline.get_line_buffer()
+        #text=self.prefilter_manager.prefilter_lines(text)
         #print(line)
         # send completion request to kernel
         msg = self.session.send(self.socket,
@@ -726,7 +727,7 @@ class ClientCompleter(object):
         return matches
     
     def complete(self, text, state):
-        
+        #text=self.prefilter = self.prefilter_manager.prefilter_lines(text)
         if self.client.backgrounded > 0:
             print("\n[Not completing, background tasks active]")
             print(readline.get_line_buffer(), end='')

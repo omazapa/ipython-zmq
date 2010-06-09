@@ -2197,7 +2197,9 @@ class InteractiveShell(Component, Magic):
         try:
             try:
                 self.hooks.pre_runcode_hook()
+                #print "aun no"
                 exec code_obj in self.user_global_ns, self.user_ns
+                #print "ahora si "
             finally:
                 # Reset our crash handler in place
                 sys.excepthook = old_excepthook
@@ -2212,8 +2214,9 @@ class InteractiveShell(Component, Magic):
             self.showtraceback()
         else:
             outflag = 0
+            
             if softspace(sys.stdout, 0):
-                print
+                print    
         # Flush out code object which has been run (and source)
         self.code_to_run = None
         return outflag

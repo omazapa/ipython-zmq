@@ -72,6 +72,7 @@ class OutStream(object):
 
     def _maybe_send(self):
         if '\n' in self._buffer[-1]:
+            self._buffer=self._buffer[0:-1]
             self.flush()
         if self._buffer_len > self.max_buffer:
             self.flush()
@@ -104,46 +105,6 @@ class DisplayHook(object):
         self.parent_header = extract_header(parent)
 
 
-class RawInput(object):
-
-    def __init__(self, session, socket):
-        self.session = session
-        self.socket = socket
-
-    def __call__(self, prompt=None):
-        msg = self.session.msg(u'raw_input')
-        self.socket.send_json(msg)
-        while True:
-            try:
-                reply = self.socket.recv_json(zmq.NOBLOCK)
-            except zmq.ZMQError, e:
-                if e.errno == zmq.EAGAIN:
-                    pass
-                else:
-                    raise
-            else:
-                break
-        return reply[u'content'][u'data']
-
-
-class DisplayHook(object):
-
-    def __init__(self, session, pub_socket):
-        self.session = session
-        self.pub_socket = pub_socket
-        self.parent_header = {}
-
-    def __call__(self, obj):
-        if obj is None:
-            return
-
-        __builtin__._ = obj
-        msg = self.session.msg(u'pyout', {u'data':repr(obj)},
-                               parent=self.parent_header)
-        self.pub_socket.send_json(msg)
-
-    def set_parent(self, parent):
-        self.parent_header = extract_header(parent)
 
 class InteractiveShellKernel(InteractiveShell):
     def __init__(self,session, reply_socket, pub_socket):
@@ -154,8 +115,6 @@ class InteractiveShellKernel(InteractiveShell):
         self.history = []
         InteractiveShell.__init__(self,user_ns=self.user_ns,user_global_ns=self.user_ns)
         
-        self.completer=KernelCompleter(self,self.user_ns)
-       
         #getting outputs
         self.stdout = OutStream(self.session, self.pub_socket, u'stdout')
         self.stderr = OutStream(self.session, self.pub_socket, u'stderr')
@@ -163,22 +122,8 @@ class InteractiveShellKernel(InteractiveShell):
         sys.stderr = self.stderr
         self.InteractiveTB.out_stream=self.stderr
         self.display_hook=DisplayHook(self.session,self.pub_socket)
-        #sys.excepthook=self.display_hook
-        #sys.displayhook=self.display_hook
-        #self.sys_excepthook=self.display_hook
-        #self.hooks.display=self.display_hook
-        #self.outputcache.__class__.display=self.display_hook
-        #self.display_trap = DisplayTrap(self, self.outputcache)
-        #self.display_trap.set()
-        
-        #self.builtin_trap=BuiltinTrap(self)
-        #self.display_trap=DisplayTrap(self,self.display_hook)
-        
-        #sys.excepthook = ultratb.ColorTB()
-        #sys.excepthook = ultratb.VerboseTB()
-        #self.formattedtb=ultratb.FormattedTB()
-        
-        # Build dict of handlers for message types
+        #setting our own completer
+        self.completer=KernelCompleter(self,self.user_ns)
         self.handlers = {}
         for msg_type in ['execute_request', 'complete_request']:
             self.handlers[msg_type] = getattr(self, msg_type)
@@ -206,22 +151,22 @@ class InteractiveShellKernel(InteractiveShell):
             time.sleep(0.1)
 
     def execute_request(self, ident, parent):
+        #send messages for current user
         self.display_hook.set_parent(parent)
+        
         try:
             code = parent[u'content'][u'code']
         except:
             print>>sys.__stderr__, "Got bad msg: "
             print>>sys.__stderr__, Message(parent)
             return
+        
         pyin_msg = self.session.msg(u'pyin',{u'code':code}, parent=parent)
         self.pub_socket.send_json(pyin_msg)
-        
         try:
             self.runlines(code, '<zmq-kernel>')
-            #exec comp_code in self.user_ns, self.user_ns
         except:
-            print "entro a except linea 226"
-            result = u'error'
+            #result = u'error'
             etype, evalue, tb = sys.exc_info()
             tb = traceback.format_exception(etype, evalue, tb)
             exc_content = {
@@ -235,7 +180,9 @@ class InteractiveShellKernel(InteractiveShell):
             reply_content = exc_content
         else:
             reply_content = {'status' : 'ok'}
+        
         reply_msg = self.session.msg(u'execute_reply', reply_content, parent)
+
         print>>sys.__stdout__, Message(reply_msg)
         self.reply_socket.send(ident, zmq.SNDMORE)
         self.reply_socket.send_json(reply_msg)
@@ -266,33 +213,7 @@ class InteractiveShellKernel(InteractiveShell):
                 print >> sys.__stderr__, "UNKNOWN MESSAGE TYPE:", omsg
             else:
                 handler(ident, omsg)
-    
-        
-#        msg_id=0
-#        while True:
-#            msg=raw_input("In [%i]"%msg_id)
-#            try:                
-#                #sys.stdout=StdOut()
-#                #sys.stderr=StdOut()
-#                for type in ['editor', 'fix_error_editor', 'synchronize_with_editor', 'result_display', 'input_prefilter', 'shutdown_hook', 'late_startup_hook', 'generate_prompt', 'generate_output_prompt', 'shell_hook', 'show_in_pager', 'pre_prompt_hook', 'pre_runcode_hook', 'clipboard_get']:
-#                    self.set_hook(type, self._hook)
-#                self.runlines(msg)
-#            except:
-#                etype, evalue, tb = sys.exc_info()
-#                tb = traceback.format_exception(etype, evalue, tb)
-#                exc_content = {
-#                    u'status' : u'error',
-#                    u'traceback' : tb,
-#                    u'etype' : unicode(etype),
-#                    u'evalue' : unicode(evalue)
-#                    }
-#                session=Session()
-#                exc_msg = session.msg(u'pyerr', exc_content,{})
-#                #print "traceback captured"
-#                                
-#         
-#            msg_id=msg_id+1
-        
+         
 if __name__ == "__main__" :
     c = zmq.Context(1, 1)
 
@@ -321,11 +242,6 @@ if __name__ == "__main__" :
     #sys.displayhook = display_hook
 
     kernel = InteractiveShellKernel(session, reply_socket, pub_socket)
-
-    # For debugging convenience, put sleep and a string in the namespace, so we
-    # have them every time we start.
-    #kernel.user_ns['sleep'] = time.sleep
-    #kernel.user_ns['s'] = 'Test string'
     
     print >>sys.__stdout__, "Use Ctrl-\\ (NOT Ctrl-C!) to terminate."
     kernel.start()

@@ -1,6 +1,8 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyrigth 2010 Omar Andres Zapata Mesa
 # Copyrigth 2010 Fernando Perez
+# Copyrigth 2010 Brian Granger
 
 import __builtin__
 from contextlib import nested
@@ -20,7 +22,12 @@ from IPython.utils.traitlets import (
 )
 
 class InteractiveShellFrontend(InteractiveShell):
-   def __init__(self,filename="<console>", session = session, request_socket=None, subscribe_socket=None):
+   """ this class uses some meny features of Interactive shell,
+       but it dont run code really, just let you interactue like ipython prompt
+       and send messages to ipython kernel
+    
+   """
+   def __init__(self,filename="<ipython_frontent>", session = session, request_socket=None, subscribe_socket=None):
        InteractiveShell.__init__(self)
        self.buffer_lines=[]
        #self.display_banner = CBool(False)
@@ -36,25 +43,34 @@ class InteractiveShellFrontend(InteractiveShell):
        self.backgrounded = 0
        self.messages = {}
        #setting clors on trecabacks
-#       sys.excepthook = ultratb.ColorTB()
+       sys.excepthook = ultratb.ColorTB()
 #       sys.excepthook = ultratb.VerboseTB()
-#       self.formattedtb=ultratb.FormattedTB()
+       self.formattedtb=ultratb.FormattedTB()
    
    def _push_line(self,line):
+       """Reimplementation of method push_line in class InteractiveShell
+       this method let indent into prompt when you need it
+        """
        for subline in line.splitlines():
             self._autoindent_update(subline)
        self.buffer_lines.append(line)
        more = self._runsource('\n'.join(self.buffer_lines), self.filename)
+       
        if more == None:
            self.buffer_lines[:]=[]
        return more
    
    def _runsource(self, source, filename='<input>', symbol='single'):
+       """Reimplementation of method runsource in class InteractiveShell
+          but dont run source really, just check syntax and send code to kernel
+            
+        """
        source=source.encode(self.stdin_encoding)
        if source[:1] in [' ', '\t']:
            source = 'if 1:\n%s' % source
        try:
            code = self.compile(source,filename,symbol)
+           #warining this code is to try enabled prefiltered code
        except (OverflowError, SyntaxError, ValueError, TypeError, MemoryError):
             # Case 1
            self.showsyntaxerror(filename)
@@ -72,7 +88,10 @@ class InteractiveShellFrontend(InteractiveShell):
            return False
     
    def prompt(self):
-        """Closely emulate the interactive Python console."""
+        """IPython console frontend that  let you have all ipython prompt facilities
+           but it dont run code, just send message to IPython Kernel and wait replies
+           this method init a mainloop 
+           """
         #print self.lsmagic()
         # batch run -> do not interact        
         if self.exit_now:
@@ -109,6 +128,8 @@ class InteractiveShellFrontend(InteractiveShell):
                     self.showtraceback()
             try:
                 line = self.raw_input(prompt, more)
+                line = self.prefilter_manager.prefilter_lines(line,more)
+                #print line
                 #buffer.append(line)
                 if self.exit_now:
                     # quick exit on sys.std[in|out] close
@@ -170,10 +191,11 @@ class InteractiveShellFrontend(InteractiveShell):
    def handle_pyout(self, omsg):
        #print "handle_pyout:\n",omsg # dbg
        if omsg.parent_header.session == self.session.session:
-           print "%s%s" % (">>", omsg.content.data)
+           print "%s%s" % ("Out[?]", omsg.content.data)
        else:
            print '[Out from %s]' % omsg.parent_header.username
            print omsg.content.data
+   
    def print_pyerr(self, err):
        #print "print_pyerr:\n",omsg
        print >> sys.stderr, err.etype,':', err.evalue
@@ -190,11 +212,10 @@ class InteractiveShellFrontend(InteractiveShell):
        #print "handle_stream:\n",omsg
        if omsg.content.name == 'stdout':
            outstream = sys.stdout
-           print >> outstream, omsg.content.data
        else:
            outstream = sys.stderr
-           print >> outstream, '*ERR*',
-           print >> outstream, omsg.content.data
+           
+       print >> outstream, omsg.content.data
 
    def handle_output(self, omsg):
        #print "handle_output:\n",omsg
